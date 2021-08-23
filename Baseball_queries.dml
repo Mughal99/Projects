@@ -1,0 +1,436 @@
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- CSC 343: Lab 3
+-- Winter 2021 | UTM
+-- SKELETON FILE FOR DML/SQL LAB
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-- ***** DO NOT CHANGE THE FORMAT *****
+-- ***** YOU MAY ONLY ADD WHERE *****
+-- *****  IT INDICATES TO DO SO *****
+
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- PREAMBLE
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- Parter 1's Name: Saim Ibrahim
+-- Partner 1's Student Number: 1004295229
+-- Partner 1's UtorID: ibrah450
+
+-- Parter 2's Name: Mustafa Mughal
+-- Partner 2's Student Number: 1004108075
+-- Partner 2's UtorID: mughalm3
+
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- BEGIN
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-- ++++++++++++++++++++
+--  Q1.A
+-- ++++++++++++++++++++
+
+SELECT nameFirst, birthYear FROM people WHERE birthCountry = 'Panama';
+
+-- ++++++++++++++++++++
+--  Q1.B
+-- ++++++++++++++++++++
+
+SELECT nameFirst, birthYear FROM people WHERE weight>= 80;
+
+-- ++++++++++++++++++++
+--  Q2
+-- ++++++++++++++++++++
+
+SELECT p.nameFirst, p.nameLast 
+FROM people p
+JOIN batting b ON b.playerID = p.playerID
+WHERE p.birthYear > 1985 
+GROUP BY p.nameFirst, p.nameLast 
+HAVING sum(b.HR) >=2;
+
+-- ++++++++++++++++++++
+--  Q3
+-- ++++++++++++++++++++
+
+SELECT DISTINCT p.nameFirst, p.nameLast, sal.salary
+FROM people p JOIN salaries sal ON sal.playerID = p.playerID
+WHERE p.playerID in
+(SELECT DISTINCT playerid FROM collegeplaying c JOIN schools s ON s.schoolID = c.schoolID WHERE s.city = 'Washington')
+ORDER BY p.nameFirst DESC;
+
+-- ++++++++++++++++++++
+--  Q4.A
+-- ++++++++++++++++++++
+
+SELECT p.nameFirst, p.nameLast FROM people p
+JOIN salaries s ON p.playerID = s.playerID
+ORDER BY s.salary DESC LIMIT 10; 
+
+-- ++++++++++++++++++++
+--  Q4.B
+-- ++++++++++++++++++++
+
+SELECT p.nameFirst, p.nameLast
+FROM people p
+JOIN salaries s ON p.playerID = s.playerID
+WHERE p.nameFirst LIKE 'An%'
+ORDER BY s.salary DESC LIMIT 10; 
+
+-- ++++++++++++++++++++
+--  Q4.C
+-- ++++++++++++++++++++
+-- get player IDs of top ten salaries
+SELECT p.playerID
+into TEMPORARY table topTen
+FROM people p
+JOIN salaries s ON p.playerID = s.playerID
+ORDER BY s.salary DESC
+LIMIT 10;
+
+-- gives temp table with total hits and total games for a player
+SELECT thits.playerID, hits, games
+into temporary table totals
+from 
+(SELECT COALESCE(SUM(b.h), 0) as hits, playerID FROM batting b where b.playerID in (select DISTINCT playerID from topTen) group by playerID) as thits
+join 
+(SELECT COALESCE(SUM(b.g), 0) as games, playerID FROM batting b where b.playerID in (select DISTINCT playerID from topTen) group by playerID) as tgames
+on thits.playerID = tgames.playerID;
+
+-- get top ten salaries with their hit average
+SELECT p.nameFirst, p.nameLast, cast(t.hits as float)/cast(t.games as float) as hitaverage
+FROM people p
+JOIN salaries s ON p.playerID = s.playerID, totals t
+where t.playerID = p.playerID
+ORDER BY s.salary DESC
+LIMIT 10;
+
+drop table topten, totals;
+
+-- ++++++++++++++++++++
+--  Q5
+-- ++++++++++++++++++++
+select 
+birthCountry, 
+count(*) as playerCount, 
+avg(height) as avgHeight, 
+avg(weight) as avgWeight, 
+avg(age) as avgAge
+from (
+    select birthCountry, height, weight, (2021 - birthYear) as age
+    from people
+    ) as p
+group by birthCountry;
+
+-- ++++++++++++++++++++
+--  Q6
+-- ++++++++++++++++++++
+
+select playerID, count(playerID) as divWins
+into temporary table playerDivWins
+from appearances a, teams t
+where a.teamID = t.teamID and t.divWin = 'Y'
+group by playerID;
+
+select playerID, divWins
+from playerDivWins
+where divWins = (select max(divWins) from playerDivWins);
+
+drop table playerDivWins;
+
+-- ++++++++++++++++++++
+--  Q7
+-- ++++++++++++++++++++
+
+-- Combine playoff and regular season batting stats and group by player
+select t.playerID, 
+(coalesce(t.totalAB, 0) + coalesce(t2.totalAB, 0)) as totalAB, 
+(coalesce(t.totalHR, 0) + coalesce(t2.totalHR, 0)) as totalHR
+into temporary table battingTotals
+from (
+        select playerID, sum(AB) as totalAB, sum(HR) as totalHR
+        from batting
+        group by playerID
+    ) as t 
+    left join 
+    (
+        select playerID, sum(AB) as totalAB, sum(HR) as totalHR
+        from BattingPost
+        group by playerID
+    ) as t2
+    on t.playerID = t2.playerID;
+
+select p.nameFirst, p.nameLast, 
+cast(totalAB as float)/cast(totalHR as float) as HRRatio 
+from battingtotals b, people p
+where totalHR <> 0 and b.playerID = p.playerID
+order by HRRatio
+limit 10;
+
+drop table battingTotals;
+
+-- ++++++++++++++++++++
+--  Q8
+-- ++++++++++++++++++++
+-- get the players with the top 10 HR ratio (from q7)
+select t.playerID, 
+(coalesce(t.totalAB, 0) + coalesce(t2.totalAB, 0)) as totalAB, 
+(coalesce(t.totalHR, 0) + coalesce(t2.totalHR, 0)) as totalHR
+into temporary table battingTotals
+from (
+        select playerID, sum(AB) as totalAB, sum(HR) as totalHR
+        from batting
+        group by playerID
+    ) as t 
+    left join 
+    (
+        select playerID, sum(AB) as totalAB, sum(HR) as totalHR
+        from BattingPost
+        group by playerID
+    ) as t2
+    on t.playerID = t2.playerID;
+
+select p.playerID, 
+cast(totalAB as float)/cast(totalHR as float) as HRRatio 
+into temporary table topTen
+from battingtotals b, people p
+where totalHR <> 0 and b.playerID = p.playerID
+order by HRRatio
+limit 10;
+
+-- get the names of their managers
+select p.nameFirst, p.nameLast
+from (
+    select b.teamID, b.yearID
+    from batting b
+    where b.playerID in (select playerID from topten)) as i,
+managers m,
+people p
+where m.yearID = i.yearID and i.teamID = m.teamID and m.playerID = p.playerID;
+
+drop table battingTotals;
+drop table topTen; 
+
+-- ++++++++++++++++++++
+--  Q9.A
+-- ++++++++++++++++++++
+-- get the players with the top 10 HR ratio (from q7)
+select t.playerID, 
+(coalesce(t.totalAB, 0) + coalesce(t2.totalAB, 0)) as totalAB, 
+(coalesce(t.totalHR, 0) + coalesce(t2.totalHR, 0)) as totalHR
+into temporary table battingTotals
+from (
+        select playerID, sum(AB) as totalAB, sum(HR) as totalHR
+        from batting
+        group by playerID
+    ) as t 
+    left join 
+    (
+        select playerID, sum(AB) as totalAB, sum(HR) as totalHR
+        from BattingPost
+        group by playerID
+    ) as t2
+    on t.playerID = t2.playerID;
+
+select p.playerID, 
+cast(totalAB as float)/cast(totalHR as float) as HRRatio 
+into temporary table topTen
+from battingtotals b, people p
+where totalHR <> 0 and b.playerID = p.playerID
+order by HRRatio
+limit 10;
+
+-- get the combined batting totals for regular season and post season
+select t.playerID, 
+(coalesce(t.totalAB, 0) + coalesce(t2.totalAB, 0)) as totalAB, 
+(coalesce(t.totalBB, 0) + coalesce(t2.totalBB, 0)) as totalBB,
+(coalesce(t.totalHits, 0) + coalesce(t2.totalHits, 0)) as totalHits,
+(coalesce(t.totalHBP, 0) + coalesce(t2.totalHBP, 0)) as totalHBP,
+(coalesce(t.totalSF, 0) + coalesce(t2.totalSF, 0)) as totalSF
+into temporary table OBPbattingTotals
+from (
+        select playerID, 
+        sum(AB) as totalAB,
+        sum(H) as totalHits,
+        sum(BB) as totalBB,
+        sum(HBP) as totalHBP,
+        sum(SF) as totalSF
+        from batting
+        group by playerID
+    ) as t 
+    left join 
+    (
+        select playerID,
+        sum(AB) as totalAB,
+        sum(H) as totalHits,
+        sum(BB) as totalBB,
+        sum(HBP) as totalHBP,
+        sum(SF) as totalSF
+        from BattingPost
+        group by playerID
+    ) as t2
+    on t.playerID = t2.playerID
+where t.playerID in (select playerID from topten);
+
+select 
+p.nameFirst,
+p.nameLast,
+cast((totalHits + totalBB + totalHBP) as float)/cast((totalAB + totalBB + totalHBP + totalSF) as float) as OBP
+from OBPbattingTotals, people p
+where OBPbattingTotals.playerID = p.playerID;
+
+drop table OBPbattingTotals;
+drop table battingTotals;
+drop table topTen;
+
+-- ++++++++++++++++++++
+--  Q9.B
+-- ++++++++++++++++++++
+
+-- Get Canadian hall of famers
+select h.playerID, p.nameLast, p.nameFirst
+into temporary table canHOF
+from halloffame h, people p
+where h.inducted = 'Y' and h.playerID = p.playerID and p.birthCountry = 'CAN';
+
+-- Combine batting stats into one table
+select t.playerID, 
+(coalesce(t.totalAB, 0) + coalesce(t2.totalAB, 0)) as totalAB, 
+(coalesce(t.totalBB, 0) + coalesce(t2.totalBB, 0)) as totalBB,
+(coalesce(t.totalHits, 0) + coalesce(t2.totalHits, 0)) as totalHits,
+(coalesce(t.totalHBP, 0) + coalesce(t2.totalHBP, 0)) as totalHBP,
+(coalesce(t.totalSF, 0) + coalesce(t2.totalSF, 0)) as totalSF
+into temporary table OBPbattingTotals
+from (
+        select playerID, 
+        sum(AB) as totalAB,
+        sum(H) as totalHits,
+        sum(BB) as totalBB,
+        sum(HBP) as totalHBP,
+        sum(SF) as totalSF
+        from batting
+        group by playerID
+    ) as t 
+    left join 
+    (
+        select playerID,
+        sum(AB) as totalAB,
+        sum(H) as totalHits,
+        sum(BB) as totalBB,
+        sum(HBP) as totalHBP,
+        sum(SF) as totalSF
+        from BattingPost
+        group by playerID
+    ) as t2
+    on t.playerID = t2.playerID
+where t.playerID in (select playerID from canHOF);
+
+-- calculate OBP and order by OBP
+select 
+p.nameFirst,
+p.nameLast,
+cast((totalHits + totalBB + totalHBP) as float)/cast((totalAB + totalBB + totalHBP + totalSF) as float) as OBP
+from OBPbattingTotals, people p
+where OBPbattingTotals.playerID = p.playerID
+order by OBP desc, nameLast
+limit 10;
+
+
+drop table canHOF;
+drop table OBPbattingTotals;
+
+-- ++++++++++++++++++++
+--  Q10.A
+-- ++++++++++++++++++++
+
+-- create table with playerid, salary and their respective awards for their salary year
+select s.playerID, s.salary, a.awardID into temporary table playerinfo
+from salaries s join awardsplayers a on a.YearID = s.YearID AND a.playerID = s.playerID 
+where s.playerID in (select playerID from salaries) group by s.playerID, s.salary, a.awardID order by s.playerID desc;
+
+-- counts the number of awards won by a player w respect to their saalaries
+select distinct a.playerID, a.salary, count(a.awardID) over(partition by a.salary) as award_count into temporary table pacs from playerinfo a order by a.playerID;
+
+-- find the correlation b/w salary and award_count for all players, return top 10 highest while ignoring 1,0,-1
+
+select * from (select playerID, corr(salary, award_count) from pacs group by playerID) as c where c.corr is not null and not c.corr=1 order by c.corr DESC limit 10;
+
+drop table playerinfo;
+drop table pacs;
+
+
+-- ++++++++++++++++++++
+--  Q10.B
+-- ++++++++++++++++++++
+
+-- get batting rookies
+select totalAB, playerID
+into temporary table battingRook
+from (
+    select sum(AB) as totalAB, playerID
+    from batting
+    group by playerID
+) as battingTotal
+where totalAB < 130 and totalAB > 0;
+
+-- get pitching rookies
+select totalIP, playerID
+into temporary table pitchRook
+from (
+    select sum(IPOuts) as totalIP, playerID
+    from pitching
+    group by playerID
+) as pitchingTotal
+where totalIP < 150 and totalIP > 2;
+
+-- get all rookies
+select distinct playerID
+into temporary table rookies
+from (
+    select playerID from battingRook 
+    union 
+    select playerID from pitchRook
+    ) as t;
+
+-- get rookie salaries
+select r.playerID, salary, yearID, teamID
+into temporary table rookieSalary
+from Salaries s, rookies r
+where s.playerID = r.playerID;
+
+-- get number of awards grouped by playerID and year
+select count(awardID) as numAwards, r.playerID, yearID
+into temporary table rookieAwards
+from AwardsPlayers a, rookies r
+where a.playerID = r.playerID
+group by r.playerID, yearID;
+
+-- get max salaries
+select t.playerID, t.max, s.teamID
+into temporary table rookieMaxSalary
+from (
+    select playerID, max(salary)
+    from rookieSalary
+    group by playerID) as t, 
+rookieSalary s
+where t.playerID = s.playerID and t.max = s.salary
+order by t.playerID;
+
+-- get combine yearly salaries and awards into one table
+select a.playerID, a.yearID, a.numAwards, s.salary
+into temporary table t
+from rookieAwards a join rookieSalary s on a.playerID = s.playerID and s.yearID = a.yearID;
+
+
+-- get correalation and max salary info
+select distinct c.playerID, c.corr, m.max as maxSalary, m.teamID
+from (
+    select playerID, corr(salary, numAwards)
+    from t
+    group by playerID) as c left join
+rookieMaxSalary m on c.playerID = m.playerID
+where corr is not null;
+
+
+drop table battingRook, pitchRook, rookies, rookieSalary, rookieAwards, t, rookieMaxSalary;
+
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- END
+-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
