@@ -1,0 +1,222 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+
+---
+
+```{r, message=FALSE, warning = FALSE, echo = FALSE}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(MASS)
+library(tidyr)
+library(car)
+
+```
+# Abstract
+
+Systolic blood pressure is one of the most important measurements that an individual should be aware of as it can be a telling sign of related health issues. It measures the force that the heart exerts on the walls of the arteries upon each time is beats and can be categorized as normal (<120 mg in Hg), elevated (120-129 mm in Hg), stage 1 high (130-139 mm in Hg) and stage 2 high blood pressure (>140 mm in Hg) (Blood pressure chart: What your reading means, 2022). There are many factors that can affect this measure and we will be considering which ones are the most related and have the greatest impact on systolic blood pressure. This process will be conducted through several regression models on a sample of 500 individuals ranging in factors such as smoking status, alcohol usage, stress levels and more, which will be compared and validated to determine what has the greatest effect on systolic blood pressure.
+
+
+# Background and methods
+
+Systolic blood pressure readings can be determinant signs of heart related diseases and other terminal issues. High ratings (hypertension) can increase the risk of heart disease which can induce heart attacks, kidney failure and overall mortality. However, for low blood pressure ratings (hypotension), it usually does not cause as much of a serious threat as high ratings, although severe hypotension can be extremely dangerous as it causes a lack of blood flow to the brain. This results in symptoms such as dizziness, blackouts, nausea, vomiting and can even be life threatning in some cases (Kumar, 2021). Common practices to reduce high blood pressure are to take prescribed medicine by a licensed professional and keeping a healthy and regular diet and lifestyle. This means to reduce alcohol consumption and avoiding smoking, although individuals who are heavy smokers may sufferer from very low blood pressure. Regular exercise and healthy diets consisting of low sodium, high potassium and high magnesium foods can help to relive high systolic blood pressure greatly. Other external factors also have an impact on the systolic blood pressure such as gender, weight, stress, childbearing capabilities, and income. In the given data set, we will be leaving out variables bmi as it does not have high associativity with blood pressure and its rather casually associated (Linderman et al., 2018). Also, for age which does not have consistent results in one’s blood pressure across the board as the systolic blood pressure on average can increase and decrease over the years, so that will also not be included in the model. We will examine the model through backwards stepwise selection and include interaction terms which have been proven in previous studies as will be explained throughout this report. We will fit various regression models and compare them using anova to determine the best model, then validate that specific model.
+```{r, include=F}
+BP <- read_excel("BloodPressure.xlsx")
+head(BP)
+```
+
+```{r, include= F}
+# change categorical variables
+BP$overwt <- as.factor(BP$overwt)
+BP$race <- as.factor(BP$race)
+BP$exercise <- as.factor(BP$exercise)
+BP$alcohol <- as.factor(BP$alcohol)
+BP$stress <- as.factor(BP$stress)
+BP$salt <- as.factor(BP$salt)
+BP$chldbear <- as.factor(BP$chldbear)
+BP$income <- as.factor(BP$income)
+BP$educatn <- as.factor(BP$educatn)
+BP$trt <- as.factor(BP$trt)
+```
+
+\newpage
+
+# Exploratory Data Analysis
+
+The analysis of systolic blood pressure is based on a dataset consisting of 500 observations (humans). There are 18 variables present in the data set, including the response variable systolic blood pressure (sbp) and 17 predictor variables. As mentioned before, the objective of the study is to determine which of these predictors have an impact on systolic blood pressure based on the data.
+
+__Systolic Blood Pressure:__
+The response variable of the study and is recorded as a numerical value. The mean and standard deviation of SBP are 144.95 and 27.99 respectively.
+
+```{r, echo=F, figures.side, fig.show="hold", out.width="25%", message=FALSE}
+# Distribution of SBP
+ggplot(BP, aes(x=sbp)) + geom_histogram()
+# Normality of SBP
+ggplot(BP, aes(sample=sbp)) + stat_qq() + stat_qq_line()
+```
+  
+  
+  The normality assumption of SBP is withheld from the histogram and normal quantile plot.
+
+__Gender:__
+A binary variable where M = Male and F = Female. There are 264 females and 236 males in the study.
+
+__Marital Status:__
+A binary variable where Y = Married and N = Not Married. There are 239 married individuals and 61 unmarried individuals.
+
+__Smoking Status:__
+A binary variable where Y = Smoker and N = Non-Smoker. There are 266 smokers and 234 non-smokers.
+
+__Age:__
+A continuous variable measuring the subjects’ age given in years. The mean and standard deviation of age are 40.20 and 13.30 years respectively.
+
+__Weight:__
+A continuous variable measuring the subjects’ weight given in pounds. The mean and standard deviation of weight are 166.64 and 40.90 pounds respectively.
+
+__Height:__
+A continuous variable measuring the subjects’ height given in inches. The mean and standard deviation of height are 65.33 and 6.19 inches respectively.
+
+__Body Mass Index(BMI):__
+A continuous variable measuring the subjects’ BMI. The CDC states the Body mass index(BMI) is a person's weight in kilograms divided by the square of height in meters. The observations will be multiplied by 703 to account for the conversion of kilograms to pounds and meters to inches. The mean and standard deviation of BMI are 27.66 and 8.56 respectively. 
+
+```{r, echo = F, fig.show="hold", out.width="25%", message=FALSE}
+# Distribution of BMI
+ggplot(BP, aes(x=age)) + geom_histogram()
+ggplot(BP, aes(x=weight)) + geom_histogram()
+ggplot(BP, aes(x=height)) + geom_histogram()
+ggplot(BP, aes(x=bmi)) + geom_histogram() 
+```
+- Distribution of Quantitative variables Against SBP
+
+__Overweight:__
+A categorical variable where subjects are separated into 3 groups based on obesity levels. Subjects are placed into the groups: 1 = Normal, 2 = Overweight and 3 = Obese. There are 187 normal weight, 109 overweight and 204 obese individuals.
+
+__Race:__
+A categorical variable where subjects are separated into 4 groups based on race. While the races are not provided, each racial group takes a value of 1, 2, 3 or 4. Of these races; 355 belong to race 1, 99 belong to race 2, 25 belong to race 3 and 21 belong to race 4.
+
+__Exercise Level:__
+A categorical variable where subjects are separated into 3 groups based on exercise levels, where 1 = Low, 2 = Medium and 3 = High. There are 195 low, 136 medium and 169 high exercise level subjects.
+
+__Stress Level:__
+A categorical variable where subjects are separated into 3 groups based on stress levels, where 1 = Low, 2 = Medium and 3 = High. There are 151 low, 175 medium and 174 high stress level subjects.
+
+__Salt Intake Level:__
+A categorical variable where subjects are separated into 3 groups based on salt intake levels, where 1 = Low, 2 = Medium and 3 = High. There are 166 low, 157 medium and 177 high salt level subjects.
+
+__Childbearing Potential:__
+A categorical variable where subjects are separated into 3 groups based on ability to childbear, where 1 = Male, 2 = Able Female and 3 = Unable Female. There are 236 males, 143 able females and 121 unable females.
+
+__Income Level:__
+A categorical variable where subjects are separated into 3 groups based on income level, where 1 = Low, 2 = Medium and 3 = High. There are 176 low, 167 medium and 157 high income level subjects.
+
+__Education Level:__
+A categorical variable where subjects are separated into 3 groups based on education level, where 1 = Low, 2 = Medium and 3 = High. There are 171 low, 159 medium and 170 high education level subjects.
+
+__Treatment (for hypertension):__ 
+A binary variable for whether or not subjects have received treatment for hypertension recorded as 0 = Treated and 1 = Untreated. There are 399 treated and 101 untreated individuals.
+
+__Correlation of Continuous Variables__
+
+```{r, echo= F,  figures-side, fig.show="hold", out.width="50%", message=FALSE}
+pairs(sbp ~ age + weight + height + bmi, data = BP, lower.panel = NULL )
+#ggplot(BP, aes(x=gender, y=sbp))+geom_boxplot()
+```
+
+From the correlation plots, it looks as if there are correlations between SBP and weight, and SBP and BMI. There seems to be correlations between the predictor variables height and BMI, and weight and BMI as well. 
+  
+\newpage
+
+# Model Selection
+
+Initially, the full regression model with 17 predictors is selected and fitted against SBP. The R² value is 0.2298 and the adjusted R² value is 0.1874. At an attempt to increase the R² values for the model, various models were fitted using different methods.
+
+The first step in the process involved performing a backwards elimination using the built-in function in R. The R² value and the adjusted R² value are now 0.2036 and 0.189 respectively. Through this step, 10 predictors are eliminated. ANOVA F-test is used to compare the two models, the backwards elimination model is chosen to progress for further inspection.
+
+The second step in the process involved creating a model that included interaction terms for all remaining 7 predictors. This model had an R² and adjusted R² value of 0.2818 and 0.214. It was suspected that this difference in R² values may be caused by having 28 predictors in the model. The model was then shortened by eliminating predictors and interaction terms that were considered to not have an impact on SBP. These terms were carefully selected to be removed through research provided from previous studies.  The model now has 13 predictors with an R² and adjusted R² value of 0.2562 and 0.1914.
+
+Finally, backwards elimination is performed on the current model and the resulting model is lm(sbp ~ smoke + exercise + weight + overwt + alcohol + trt + income + alcohol:trt + smoke:trt). The R² and adjusted R² values are 0.229 and 0.2067. An ANOVA F-Test is ran to compare this model with the previous model and therefore the simpler model is concluded to be significantly better than the complex model.
+
+\newpage
+
+```{r, echo = F}
+final_model <- lm(sbp ~ smoke + exercise + weight + overwt + alcohol + trt + income + alcohol:trt + smoke:trt, data = BP)
+summary(final_model)
+```
+
+\newpage
+
+# Diagnostics
+
+```{r, echo=F, include=FALSE}
+fit_5 <- lm(sbp~. + alcohol*trt + smoke*trt + married*trt + exercise*chldbear + stress*alcohol + stress*exercise - bmi - age, data = BP)
+step(fit_5, direction = "backward", data = BP)
+```
+
+```{r, echo=F}
+final_mod <- lm(formula = sbp ~ smoke + exercise + weight + overwt + alcohol + 
+    trt + income + alcohol:trt + smoke:trt, data = BP)
+plot(final_mod, which = 1)
+```
+
+This residual and fitted value plot shows that there does seem to be a linear relations as points are roughly evenly distributed across the 0 line, which is also shown by the line in red as it is almost horizontal along 0.
+```{r, echo=F}
+plot(final_mod, which = 2)
+```
+
+This QQ plot helps to show normality in the model as they are linearly distributed on the line with a few outliers visible in 403, 32 and 104. We will further evaluate these outliers with VIF.
+
+```{r, echo=F}
+plot(final_mod, which = 3)
+```
+
+Although the red line is not completely horizontal, we can still see random and evenly spread distribution of the points along the red line indicating that homoscedasticity holds in this model.
+
+\newpage
+
+# Model Validation
+
+```{r, echo=F, include = F}
+n = 500
+p = 7
+#DFFITS for large data set 
+DFFITS = dffits(final_mod)
+which(abs(DFFITS) > 2 * sqrt((p+1)/n))
+DFBETAS = dfbetas(final_mod)
+which(abs(DFBETAS)> 2/sqrt(n))
+```
+
+```{r, echo=F}
+influencePlot(final_mod)
+
+```
+
+```{r, echo=F, include=FALSE}
+VIF = vif(final_mod)
+max(VIF) 
+
+avgVIF = mean(VIF)
+avgVIF
+
+#cooks distance for the 50th percentile
+cooks_distance = cooks.distance(final_mod)
+which(cooks_distance > qf(0.5,p+1,n-(p+1)))
+max(cooks_distance)
+qf(0.5, p+1, n-(p+1))
+```
+
+Our computed DFFITS and DFBETAS show that there are several obeservations which are influential in predicting the sbp in our model indicating that these points will have a great affect on the slope.
+
+For cooks distance, none of the points are greater than $F(p', n-p')$ so there are no influential points based on cooks distance.
+
+Here our max VIF is 5.077175, which is less than 10 and our $\overline{VIF}$ is 1.78549 which is not considerably larger than 1. Therefore we have evidence indicating that there is no serious multicollinearity present in this model.
+
+# Conclusion
+
+The purpose of the study was to determine which of the 17 predictors had an impact on systolic blood pressure.  The final model obtained consisted of 7 predictors and 2 interaction terms. However, the final R² and adjusted R² values are 0.229 and 0.2067 are very similar to the full model’s R² and adjusted R² values of 0.2298 and 0.1874. This improvement does not seem important because the R² values did not change much but it is important to note that 10 predictors were eliminated in the process. 
+
+That being said, it is also important to comment on the final R² and adjusted R² values of 0.229 and 0.2067 because these values are not high enough to show a great relationship between final predictors and systolic blood pressure. Further research should be completed to help improve R² values. One way to improve R² values would be to include predictors that are not included in the current study. For example, high SBP is known to be more common in individuals whose parents have had it. Another way to possibly improve this model would be to use the final model for another data set. In conclusion, it is evident from the analysis that there was a significant  improvement in the final model compared to the full model but not enough evidence to conclude a significant relationship selected predictors and the response variable.
+
+
